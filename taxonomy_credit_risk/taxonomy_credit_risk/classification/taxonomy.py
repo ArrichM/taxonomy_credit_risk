@@ -216,18 +216,3 @@ Text of the website:
         )
 
         return assessment
-
-
-taxonomy_path = "data/taxonomy.xlsx"
-
-self = TaxonomyClient.from_path(taxonomy_path)
-
-import requests
-import trafilatura
-
-resp = requests.get("https://www.homepowersolutions.de/en/product/")
-text = trafilatura.extract(resp.text)
-
-activity = self.classify_activity(text)
-
-activity.title
