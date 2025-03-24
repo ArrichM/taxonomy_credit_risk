@@ -1,6 +1,7 @@
 import pandas as pd
 import requests
 import trafilatura
+import tldextract
 from sentence_transformers import SentenceTransformer
 
 from taxonomy_credit_risk.classification.taxonomy import TaxonomyClient
@@ -24,15 +25,18 @@ data = data.loc[data["sme_financial"].astype(bool)]
 urls = data.drop_duplicates("code_company_code")["item6030_internet_address"].unique()
 len(urls)
 
-url = urls[15]
+url = urls[5100]
+target_domain= tldextract.extract(url).fqdn
 
-text_frame = scraping_client.get_page_candidate_frame(target_url=url)
+text_frame = scraping_client.get_page_candidate_frame(target_url=target_domain)
 
-homepage = requests.get(urls[15])
-texts = [trafilatura.extract(homepage.text)]
-activities = client.classify_activity(texts)
 
-compliances = client.classify_compliance(texts=texts, activities=activities)
+homepage_texts = text_frame.iloc[:10]["content"].apply(lambda x: trafilatura.extract(x, with_metadata=True)).to_list()
+homepage_text = "\n--------------------------\n".join(homepage_texts)
+
+activities = taxonomy_client.classify_activity([homepage_text])
+
+compliances = taxonomy_client.classify_compliance(texts=[homepage_texts], activities=activities)
 
 compliance = compliances[0]
 
@@ -40,5 +44,21 @@ compliance.dimensions[0].is_eligible
 compliance.dimensions[0].alignment
 compliance.dimensions[0].reasoning_alignment
 compliance.dimensions[0].reasoning_eligibility
-compliance.dimensions[0].score
+compliance.dimensions[0].alignment_confidence
+
+activities[0].dimensions[0].contribution
+
+print(text_frame.iloc[0]["parsed"])
+print(text_frame.iloc[1]["parsed"])
+print(text_frame.iloc[2]["parsed"])
+print(text_frame.iloc[8]["parsed"])
+
+homepage = requests.get(urls[15])
+texts = [trafilatura.extract(homepage.text)]
+activities = client.classify_activity(texts)
+
+compliances = client.classify_compliance(texts=texts, activities=activities)
+
+
+
 

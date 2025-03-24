@@ -235,8 +235,11 @@ class ScrapingClient:
             record_frame = record_frame[record_frame["status"] != "404"]
 
             # Sort english pages to the front
-            record_frame["is_en"] = record_frame["languages"].apply(lambda x: int("eng" in x) if not pd.isna(x) else 0)
-            record_frame.sort_values(by="is_en", ascending=False, inplace=True)
+            try:
+                record_frame["is_en"] = record_frame["languages"].apply(lambda x: int("eng" in x) if not pd.isna(x) else 0)
+                record_frame.sort_values(by="is_en", ascending=False, inplace=True)
+            except KeyError:
+                pass
 
             # Drop pages that redirect to pages we already have
             record_frame = record_frame[~record_frame["redirect"].isin(record_frame["urlkey"].str.split(")").str[1].to_list())]
@@ -286,7 +289,6 @@ class ScrapingClient:
                 # Extract and store all outgoing links
                 links = pages_frame["content"].apply(lambda x: extract_links(x))
                 flat_links = set([l for sublist in links for l in sublist])
-                self.outgoing_links.update(flat_links)
 
                 pages_frame["parsed"] = pages_frame["content"].apply(lambda x: trafilatura.extract(x, favor_recall=True))
                 pages_frame = pages_frame.dropna(subset=["parsed"])

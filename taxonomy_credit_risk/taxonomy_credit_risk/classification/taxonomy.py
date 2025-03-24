@@ -158,7 +158,7 @@ class TaxonomyClient:
     You will be provided with a list of activities and the text from the homepage of a company. 
     Your task is to classify the company's main economic activity into one of the provided activities. 
     Respond with the activity id and the reasoning that supports your classification.
-    If you are not sure about the classification, you can respond with "unknown".
+    If you are not sure about the classification, you can respond with "unknown". If none of the activities apply to the company, please respond with "none".
     """
             human_message = f"""
     Text of thw website:
@@ -186,6 +186,8 @@ class TaxonomyClient:
 
         activities = []
         for resp in response:
+            if resp.activity_id in ["none", "unknown"]:
+                activities.append(None)
             activities.append(self.activities[resp.activity_id])
 
         return activities
@@ -209,7 +211,8 @@ class TaxonomyClient:
     For each dimension, perform the following:
     
     1. **Eligibility:**  
-       - Determine if the company is potentially eligible, meaning if the business activities of the company could contribute to the criteria in that dimension.
+        - First confirm, that the activity actually applies to the companies main economic activity. If it deos not apply, set "is_eligible" to false since the company is not eligible under this activity.
+       - Determine if the company is potentially eligible, meaning if the business activities of the company could contribute to the criteria in that dimension, without changing the current business model.
        - Set "is_eligible" to true if the company is eligible in that dimension.
     
     2. **Alignment:**  
