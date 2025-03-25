@@ -1,13 +1,11 @@
 
 import trafilatura
 from more_itertools import chunked
-from sentence_transformers import SentenceTransformer
 from tqdm import tqdm
 
 import ssl
 import urllib.request
 from bs4 import BeautifulSoup
-import numpy as np
 
 
 from typing import Tuple
@@ -152,56 +150,9 @@ def extract_links(html: str) -> List[str]:
     return [a.get("href") for a in soup.find_all("a") if a.get("href")]
 
 
-def get_best_page_scores(candidate_frame, embedding_model, query_vector, chunk_size=10, max_text_length=4000):
-    """
-    Calculates the best similarity score for each page in candidate_frame,
-    processing text in chunks.
-
-    Args:
-        candidate_frame (pandas.DataFrame): DataFrame with a 'parsed' column containing page text.
-        embedding_model: Embedding model with encode and similarity methods.
-        query_vector (numpy.ndarray): Query embedding vector.
-        chunk_size (int): Number of text chunks to process at a time.
-        max_text_length (int): Maximum length of text to embed.
-
-    Returns:
-        list: List of best similarity scores for each page.
-    """
-
-    page_scores = {}  # Store best scores for each page index
-    page_indices = candidate_frame.index.tolist() #get the indexes of the dataframe
-
-    for page_index, page_text in zip(page_indices, candidate_frame["parsed"].tolist()):
-        text_chunks = [page_text[i:i + max_text_length] for i in range(0, len(page_text), max_text_length)]
-        chunked_embeddings = []
-
-        for batch_start in range(0, len(text_chunks), chunk_size):
-            batch_end = min(batch_start + chunk_size, len(text_chunks))
-            batch = text_chunks[batch_start:batch_end]
-            embeddings = embedding_model.encode(batch, normalize_embeddings=True)
-            chunked_embeddings.append(embeddings)
-
-        if chunked_embeddings:
-            all_embeddings = np.concatenate(chunked_embeddings, axis=0) #concatenate the embeddings
-            scores = embedding_model.similarity(query_vector, all_embeddings)
-            best_score = float(scores.max()) #get the best score from the page
-            page_scores[page_index] = best_score
-        else:
-            page_scores[page_index] = -1.0 # Or any other default value if no text
-
-    return [page_scores[index] for index in page_indices] #return the scores in the same order as the input dataframe.
-
-
 class ScrapingClient:
 
-    def __init__(
-            self,
-            embedding_model: SentenceTransformer,
-            query_phrase: str = "This is the main activity of the company",
-    ):
-
-        self.embedding_model = embedding_model
-        self.query_vector: np.ndarray = self.embedding_model.encode(query_phrase, normalize_embeddings=True)
+    def __init__(self):
 
         # Create an unverified SSL context and install an opener with it.
         ssl_context = ssl._create_unverified_context()

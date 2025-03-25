@@ -4,7 +4,7 @@ import os
 import pandas as pd
 import numpy as np
 import chromadb
-from chromadb.utils import embedding_functions
+from chromadb.utils.embedding_functions import SentenceTransformerEmbeddingFunction
 from langchain_google_vertexai import ChatVertexAI
 from langchain_core.messages import SystemMessage, HumanMessage
 import pydantic
@@ -64,8 +64,8 @@ class TaxonomyClient:
     def __init__(self, activities: Dict[str, Activity], chroma_client: chromadb.Client = None):
 
         self.activities = activities
-        self.sentence_transformer_ef = embedding_functions.SentenceTransformerEmbeddingFunction(
-            model_name="intfloat/multilingual-e5-small"
+        self.sentence_transformer_ef = SentenceTransformerEmbeddingFunction(
+            model_name="intfloat/multilingual-e5-base"
         )
         if not chroma_client:
             self.chroma_client = chromadb.PersistentClient(path="data/chroma")
@@ -75,14 +75,11 @@ class TaxonomyClient:
                 embedding_function=self.sentence_transformer_ef
             )
 
-            descriptions = {}
-            for activity in activities.values():
-                descriptions[activity.id] = activity.dimensions[0].description
-
             self.activities_collection.add(
-                documents=list(descriptions.values()),
-                ids=list(descriptions.keys())
+                documents=["query: " + act.title for act in activities.values()],
+                ids=list(activities.keys())
             )
+
         else:
             self.chroma_client = chroma_client
             self.activities_collection = self.chroma_client.get_collection(name="taxonomy_activities", embedding_function=self.sentence_transformer_ef)
@@ -141,47 +138,51 @@ class TaxonomyClient:
     def get_activities_and_pages(self, pages: List[str], n_activities: int = 20):
 
         pages_client = chromadb.EphemeralClient()
-        pages_collection = pages_client.create_collection(
-            name="pages_temp",
-            embedding_function=self.sentence_transformer_ef
-        )
-        pages_collection.add(documents=pages, ids=[str(i) for i in range(len(pages))])
+        try:
+            pages_collection = pages_client.create_collection(
+                name="pages_temp",
+                embedding_function=self.sentence_transformer_ef
+            )
+            pages_collection.add(documents=["query: " + p for p in pages], ids=[str(i) for i in range(len(pages))])
 
-        # Step 1: get the activities best matching for the company
-        all_docs = self.activities_collection.get(include=["embeddings"])
-        activity_embeddings = {idx: emb for idx, emb in zip(all_docs["ids"], all_docs["embeddings"])}
+            # Step 1: get the activities best matching for the company
+            all_docs = self.activities_collection.get(include=["embeddings"])
+            activity_embeddings = {idx: emb for idx, emb in zip(all_docs["ids"], all_docs["embeddings"])}
 
-        activity_ids = activity_embeddings.keys()
-        activity_embeddings = np.array(list(activity_embeddings.values()))
-        query_results = pages_collection.query(query_embeddings=activity_embeddings, n_results=min(len(pages), 500))
-        # query_results is a dict with fields ["ids", "distances", "documents"]
-        activity_scores = np.array(query_results["distances"]).mean(axis=1)
+            activity_ids = activity_embeddings.keys()
+            activity_embeddings = np.array(list(activity_embeddings.values()))
+            query_results = pages_collection.query(query_embeddings=activity_embeddings, n_results=min(len(pages), 500))
+            # query_results is a dict with fields ["ids", "distances", "documents"]
+            activity_scores = np.array(query_results["distances"]).mean(axis=1)
 
-        matching_activities = {
-            activity_id: activity_scores[i] for i, activity_id in enumerate(activity_ids)
-        }
+            matching_activities = {
+                activity_id: activity_scores[i] for i, activity_id in enumerate(activity_ids)
+            }
 
-        # Keep the best 20 activities with the lowest avg. distance
-        best_activities = [a[0] for a in sorted(matching_activities.items(), key=lambda x: x[1])[:n_activities]]
+            # Keep the best 20 activities with the lowest avg. distance
+            best_activities = [a[0] for a in sorted(matching_activities.items(), key=lambda x: x[1])[:n_activities]]
 
 
-        page_frames = []
-        for activity_id, (distances, ids, documents) in enumerate(zip(
-                query_results["distances"], query_results["ids"], query_results["documents"]
-        )):
-            activity_name = list(activity_ids)[activity_id]
-            if activity_name not in best_activities:
-                continue
-            page_frames.append(pd.DataFrame({
-                "distance": distances,
-                "page_id": ids,
-                "page_text": documents,
-                "activity":activity_name
-            }))
+            page_frames = []
+            for activity_id, (distances, ids, documents) in enumerate(zip(
+                    query_results["distances"], query_results["ids"], query_results["documents"]
+            )):
+                activity_name = list(activity_ids)[activity_id]
+                if activity_name not in best_activities:
+                    continue
+                page_frames.append(pd.DataFrame({
+                    "distance": distances,
+                    "page_id": ids,
+                    "page_text": documents,
+                    "activity":activity_name
+                }))
 
-        page_frame = pd.concat(page_frames).reset_index()
-        page_frame.sort_values("distance", inplace=True)
-        page_frame.drop_duplicates("page_id", inplace=True, keep="first")
+            page_frame = pd.concat(page_frames).reset_index()
+            page_frame.sort_values("distance", inplace=True)
+            page_frame.drop_duplicates("page_id", inplace=True, keep="first")
+
+        finally:
+            pages_client.delete_collection("pages_temp")
 
         return page_frame, [self.activities[activity_id] for activity_id in best_activities]
 
@@ -228,7 +229,7 @@ class TaxonomyClient:
             if resp.activity_id in ["none", "unknown"]:
                 activities.append(None)
                 continue
-            activities.append(self.activities[resp.activity_id])
+            activities.append(self.activities.get(resp.activity_id, None))
 
         return activities
 
@@ -256,7 +257,7 @@ For each dimension, perform the following:
    - **DNSH Criteria:** The "dnsh" object provides guidance on whether the activity meets Do No Significant Harm (DNSH) requirements for various dimensions. Use the relevant DNSH key for the dimension you are analyzing.
 
 2. **Eligibility:**  
-    - Confirm whether the taxonomy activity (as described in the "description") applies to the company’s main economic activity based on its homepage text. If not so, mark the company as ineligible.
+    - Confirm whether the taxonomy activity (as described in the "description") applies to the company’s main economic activity based on its homepage text. If not so, mark the company as ineligible. Be careful here: closely read every aspect of the activities description according to the EU taxonomy.
     - If the activity does not apply, set "eligibility" to 0 and explain in "reasoning_eligibility".
     - Otherwise, assess how well the company’s activities match the taxonomy description using a 0–10 scale:
         0 – Unknown: The provided website text does not allow for a clear assessment of eligibility.
@@ -269,29 +270,52 @@ For each dimension, perform the following:
         7 – Largely Eligible: Most major activities align with taxonomy eligibility; minor aspects may need further clarification.
         8 – Highly Eligible: Core activities are clearly defined as eligible, with solid supporting evidence.
         9 – Very Highly Eligible: The company offers detailed, unambiguous descriptions and documentation for nearly all activities as eligible.
-        10 – Fully Eligible: All activities are unambiguously taxonomy-eligible, with comprehensive, robust evidence and clear compliance with every criterion.
-    - Provide a brief explanation (reasoning_eligibility) that summarizes your assessment and cites key phrases from the homepage text.
+        10 – Fully Eligible: All activities are unambiguously taxonomy-eligible.
+    - Provide a brief explanation (reasoning_eligibility) that summarizes your assessment. Your reasoning must start with a verbatim citation from the description field of the taxonomy activity.
     - Note that for deciding on the eligibility, only see if the company's activities match the description of the taxonomy activity. Here, you do not yet consider the alignment of the company's practices with the taxonomy criteria.
+    
+**EXAMPLE FOR ELIGIBILITY**
+
+Company Activity:
+We are a leading research institute in the field of financial derivative pricing.
+Activity Description:
+Research, applied research and experimental development of solutions, processes, technologies, business models and other products dedicated to the reduction, avoidance or removal of GHG emissions (RD&I) for which the ability to reduce, remove or avoid GHG emissions in the target economic activities has at least been demonstrated in a relevant environment, corresponding to at least Technology Readiness Level (TRL) 6(384) ...[goes on]...
+
+Eligibility Reasoning:
+Citation: <[...] dedicated to the reduction, avoidance or removal of GHG emissions (RD&I) [...]> Reasoning: Although the company is a research institute it has its focus on financial derivative pricing. The company's main activity is not related to the reduction, avoidance, or removal of GHG emissions as required in the activity description. Therefore, the company is not eligible for this taxonomy activity.
+Eligibility Score:
+eligibility: 1 -  Completely Ineligible
 
 3. **Alignment:**  
-    - Evaluate how well the company’s practices (as indicated on the homepage) meet the requirements of the taxonomy activity (as described in the "contribution" field).
+    - Evaluate how well the company’s practices (as indicated on the homepage) meet the requirements as described in the "contribution" field of the dimension.
     - Use a 0–10 scale for alignment:
         0 – Unknown: The provided website text does not allow for a clear assessment of alignment.
-        1 – Not Aligned: No evidence of meeting any alignment criteria.
-        2 – Negligible Alignment: Only incidental or vague mentions of relevant criteria.
-        3 – Very Low Alignment: Minimal and weak evidence of alignment with key technical standards.
-        4 – Limited Alignment: Some aspects of alignment are present, though major criteria are unmet or ambiguous.
-        5 – Partial Alignment: Certain criteria are met, but significant gaps or inconsistencies remain.
-        6 – Moderate Alignment: Core criteria are generally addressed with acceptable evidence, despite some deficiencies.
-        7 – Considerable Alignment: Most technical criteria are met with solid supporting documentation.
-        8 – High Alignment: Clear, robust evidence across nearly all criteria, with minor gaps only.
-        9 – Very High Alignment: Nearly complete adherence to all technical standards with comprehensive evidence.
-        10 – Fully Aligned: Exemplary and unambiguous compliance with every relevant criterion, fully supported by evidence.
-    - Provide a brief explanation in "reasoning_alignment" that highlights supporting evidence (including direct quotations if possible) from the company text. 
+        1 – Not Aligned: No evidence of meeting the contribution criteria.
+        2 – Negligible Alignment: Only incidental or vague mentions of the contribution criteria.
+        3 – Very Low Alignment: Minimal and weak evidence of alignment with the contribution criteria.
+        4 – Limited Alignment: Some aspects of alignment are present, though major contribution criteria are unmet or ambiguous.
+        5 – Partial Alignment: Certain contribution criteria are met, but significant gaps or inconsistencies remain.
+        6 – Moderate Alignment: Core contribution criteria are generally addressed with acceptable evidence, despite some deficiencies.
+        7 – Considerable Alignment: Most contribution criteria are met with solid supporting documentation.
+        8 – High Alignment: Clear, robust evidence that the companies activities meet the contribution criteria.
+        9 – Very High Alignment: Detailed, unambiguous descriptions and documentation for nearly all contribution criteria.
+        10 – Fully Aligned: The contribution criteria are unambiguously met.
+    - Provide a brief explanation in "reasoning_alignment". Your reasoning must start with a verbatim citation from the contribution field of the taxonomy activity.
+    - NOTE: Alignment in one dimension does ONLY depend on the company meeting the requirements in the "contribution" field of the dimension. It does not depend on anything else, like being "green" or "sustainable" in any subjective way.
 
 4. **DNSH Violation Check:**  
    - Based on the "dnsh" field for the relevant dimension in the JSON, determine if the company's practices violate any Do No Significant Harm (DNSH) criteria.
    - If there is evidence of a violation in the relevant DNSH aspect, set "dnsh_violated" to true; otherwise, set it to false.
+
+**EXAMPLE FOR ELIGIBILITY**
+Company Activity:
+We develop comprehensive software for monitoring the Co2 emissions of your server farm.
+Contribution Criteria:
+Development or use of ICT solutions that are aimed at one of the following: a. running Ml models to optimize production processes towards lowering GHG emissions. b. collecting data enabling GHG emission reductions. c. Software development practices where development meets the criteria set out in Annex II of Regulation (EU) 2021/873. Such ICT solutions may include, inter alia, the use of decentralized technologies (i.e. distributed ledger technologies), Internet of Things (IoT), 5G and Artificial Intelligence.
+Alignment Reasoning:
+Citation: <Development or use of ICT solutions that are aimed at one of the following: [...] b. collecting data enabling GHG emission reductions.[...]>. Reasoning: The company develops software for monitoring CO2 emissions. This data can be seen as collecting data enabling GHG emission reductions. Since the contribution criteria explicitly requires only "one of the following", this is sufficient to meet the contribution criteria, the other ones are not required. Therefore, the company is aligned with the contribution criteria.
+Alignment Score:
+alignment: 9 - High Alignment
 
 Analyze the provided texts carefully and output only the resulting JSON object.
 """
@@ -311,6 +335,6 @@ Analyze the provided texts carefully and output only the resulting JSON object.
              ]
             inputs.append(input)
 
-        assessments = self.model.with_structured_output(Compliance).batch(inputs)
+        assessments = self.model.with_structured_output(Compliance).batch(inputs, temperature=0)
 
         return assessments
