@@ -208,7 +208,22 @@ class ScrapingClient:
         opener = urllib.request.build_opener(urllib.request.HTTPSHandler(context=ssl_context))
         urllib.request.install_opener(opener)
 
-    def get_page_candidate_frame(self, target_url: str, max_page_count: int = 10_000,  chunk_len: int = 1_500) -> pd.DataFrame:
+    def get_record_frame_sitemap(self, target_url: str) -> pd.DataFrame:
+        from usp.tree import sitemap_tree_for_homepage
+
+        record_frame = pd.DataFrame()
+
+        tree = sitemap_tree_for_homepage(f'https://{target_url}')
+        sites = [{"url": page.url} for page in list(tree.all_pages())]
+        site_frame = pd.DataFrame(sites)
+        site_frame["length"] = 1_000
+        site_frame["source"] = "sitemap"
+        print(f"Found {len(site_frame)} sitemap pages")
+        record_frame = pd.concat([record_frame, site_frame], axis=0)
+
+        return record_frame
+
+    def get_record_frame_cc(self, target_url: str) -> pd.DataFrame:
 
         records = search_cc_index(target_url + "/*", INDICES)
 
@@ -249,21 +264,23 @@ class ScrapingClient:
             record_frame.sort_values(by="url_clipped", ascending=False, inplace=True)
             record_frame.drop_duplicates(subset=["url_clipped"], inplace=True)
 
-        if len(records) < 50:
-            from usp.tree import sitemap_tree_for_homepage
+        return record_frame
 
-            tree = sitemap_tree_for_homepage(f'https://{target_url}')
-            sites = [{"url": page.url} for page in list(tree.all_pages())]
-            site_frame = pd.DataFrame(sites)
-            site_frame["length"] = 1_000
-            site_frame["source"] = "sitemap"
-            print(f"Found {len(site_frame)} sitemap pages")
-            record_frame = pd.concat([record_frame, site_frame], axis=0)
+    def get_page_candidate_frame(self, target_url: str, max_page_count: int = 10_000,  chunk_len: int = 1_500, use_cc: bool = True) -> pd.DataFrame:
+
+        if use_cc:
+            record_frame = self.get_record_frame_cc(target_url)
+
+            if len(record_frame) < 50:
+                record_frame_sitemap = self.get_record_frame_sitemap(target_url)
+                record_frame = pd.concat([record_frame, record_frame_sitemap], axis=0).reset_index()
+
+        else:
+            record_frame = self.get_record_frame_sitemap(target_url)
 
         print(f"Found {len(record_frame)} unique pages")
 
         if len(record_frame) > max_page_count:
-
             # Then, drop very long URLS
             record_frame["url_len"] = record_frame["url"].str.len()
             record_frame.sort_values(by="url_len", ascending=True, inplace=True)
@@ -277,35 +294,20 @@ class ScrapingClient:
         record_frame = record_frame.iloc[:max_page_count]
 
         all_candidate_frames = []
-        for batch_indexes in tqdm(chunked(record_frame.index, 100), total=len(record_frame) // 100):
+        for batch_indexes in tqdm(chunked(record_frame.index, 100), total=(len(record_frame) // 100) + 1):
 
             try:
                 batch_frame = record_frame.loc[batch_indexes]
 
                 # Fetch webpages in parallel
-                webpages = fetch_webpages_parallel(batch_frame, max_workers=5)
+                webpages = fetch_webpages_parallel(batch_frame, max_workers=20)
                 pages_frame = pd.DataFrame(webpages)
 
-                # Extract and store all outgoing links
-                links = pages_frame["content"].apply(lambda x: extract_links(x))
-                flat_links = set([l for sublist in links for l in sublist])
-
-                pages_frame["parsed"] = pages_frame["content"].apply(lambda x: trafilatura.extract(x, favor_recall=True))
+                pages_frame["parsed"] = pages_frame["content"].apply(lambda x: trafilatura.extract(x, favor_recall=True, with_metadata=True))
                 pages_frame = pages_frame.dropna(subset=["parsed"])
 
                 candidate_frame = pages_frame.copy().dropna(subset=["parsed"]).drop_duplicates(subset=["parsed"])
 
-                # Embed all candidate pages
-                page_scores = get_best_page_scores(
-                    candidate_frame,
-                    self.embedding_model,
-                    self.query_vector,
-                    chunk_size=10,
-                    max_text_length=chunk_len
-                )
-
-                candidate_frame["score"] = page_scores
-                candidate_frame.sort_values(by="score", ascending=False, inplace=True)
                 all_candidate_frames.append(candidate_frame)
 
             except Exception as e:
