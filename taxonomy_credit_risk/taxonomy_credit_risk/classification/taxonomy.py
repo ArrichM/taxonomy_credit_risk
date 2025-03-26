@@ -226,10 +226,13 @@ class TaxonomyClient:
 
         activities = []
         for resp in response:
-            if resp.activity_id in ["none", "unknown"]:
+            try:
+                if resp.activity_id in ["none", "unknown"]:
+                    activities.append(None)
+                    continue
+                activities.append(self.activities.get(resp.activity_id, None))
+            except:
                 activities.append(None)
-                continue
-            activities.append(self.activities.get(resp.activity_id, None))
 
         return activities
 
