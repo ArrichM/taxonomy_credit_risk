@@ -45,6 +45,10 @@ class Compliance(pydantic.BaseModel):
     dimensions: List[DimensionCompliance] = pydantic.Field(
         description="One assessment for each provided dimension of the requirements")
 
+class Eligibility(pydantic.BaseModel):
+    reasoning_eligibility: str = pydantic.Field(description="Reasoning for the eligibility decision")
+    eligibility: int = pydantic.Field(description="Eligibility status in this dimension")
+
 
 def get_dnsh(row, name: str) -> str:
 
@@ -285,7 +289,7 @@ Activity Description:
 Research, applied research and experimental development of solutions, processes, technologies, business models and other products dedicated to the reduction, avoidance or removal of GHG emissions (RD&I) for which the ability to reduce, remove or avoid GHG emissions in the target economic activities has at least been demonstrated in a relevant environment, corresponding to at least Technology Readiness Level (TRL) 6(384) ...[goes on]...
 
 Eligibility Reasoning:
-Citation: <[...] dedicated to the reduction, avoidance or removal of GHG emissions (RD&I) [...]> Reasoning: Although the company is a research institute it has its focus on financial derivative pricing. The company's main activity is not related to the reduction, avoidance, or removal of GHG emissions as required in the activity description. Therefore, the company is not eligible for this taxonomy activity.
+Citation: <[...] dedicated to the reduction, avoidance or removal of GHG emissions (RD&I) [...]> Reasoning: Although the company is a research institute, it has its focus on financial derivative pricing. The company's main activity is not related to the reduction, avoidance, or removal of GHG emissions as required in the activity description and achieving this would require a major change in the company's business model. Therefore, the company is not eligible for this taxonomy activity.
 Eligibility Score:
 eligibility: 1 -  Completely Ineligible
 
@@ -339,5 +343,93 @@ Analyze the provided texts carefully and output only the resulting JSON object.
             inputs.append(input)
 
         assessments = self.model.with_structured_output(Compliance).batch(inputs, temperature=0)
+
+        return assessments
+
+    def classify_eligibility(self, texts: List[str], activities: List[Activity]) -> List[Eligibility]:
+
+        inputs = []
+
+        for text, activity in zip(texts, activities):
+            criteria_block = "".join([f"\n- {dim.name}" for dim in activity.dimensions])
+
+            system_prompt = """
+You are provided with two inputs:
+1. The description of a business activity of the EU taxonomy.
+2. The text of the homepage of a company.
+
+Your task is to closely read the description of the taxonomy activity and assess whether the company's main economic activity could be classified as eligible for this taxonomy activity.
+Note that we do not care about a subjective notion of sustainability when answering the question of eligibility. The main question to answer is: Is the company's main economic activity in scope for this taxonomy activity?
+
+**STEPS**
+- Read the taxonomy activity description carefully.
+- Based on the description, assess whether the company's main economic activity is eligible for this taxonomy activity. Eligibility means that the company's main economic activity may fall under the scope of the taxonomy activity without requiring a major change in the company's business model.
+- If the activity does not apply, set "eligibility" to 1 and explain in "reasoning_eligibility".
+Provide your answer on a 0-10 scale:
+    0 – Unknown: The provided website text does not allow for an assessment of eligibility.
+    1 – Completely Ineligible: No company activities match the taxonomy activities description.
+    2 – Barely Mentioned: Only tangential or vague references hint at a possible eligible activity, without substantive evidence.
+    3 – Marginally Eligible: A minor, unclear activity might qualify, but overall relevance is very limited.
+    4 – Questionably Eligible: Some activities have elements of eligibility, yet descriptions are ambiguous and key criteria are not clearly met.
+    5 – Borderline Eligible: Certain core activities could be seen as eligible, but significant doubts remain due to incomplete or unclear details.
+    6 – Moderately Eligible: A mix of activities is described—some clearly matching eligible definitions while others remain uncertain.
+    7 – Largely Eligible: Most major activities align with taxonomy eligibility; minor aspects may need further clarification.
+    8 – Highly Eligible: Core activities are clearly defined as eligible, with solid supporting evidence.
+    9 – Very Highly Eligible: The company offers detailed, unambiguous descriptions and documentation for nearly all activities as eligible.
+    10 – Fully Eligible: All activities are unambiguously taxonomy-eligible.
+    
+- Provide a brief explanation (reasoning_eligibility) that summarizes your assessment. Your reasoning must start with a verbatim citation from the description field of the taxonomy activity. Use the following format for the reasoning:
+    Citation: <[...] citation from the description field of the taxonomy activity, [...] possibly with omissions [...]> Reasoning: [Your reasoning here]
+
+**EXAMPLE 1**
+Taxonomy Activity Description:
+Research, applied research and experimental development of solutions, processes, technologies, business models and other products dedicated to the reduction, avoidance or removal of GHG emissions (RD&I) for which the ability to reduce, remove or avoid GHG emissions in the target economic activities has at least been demonstrated in a relevant environment, corresponding to at least Technology Readiness Level (TRL) 6(384) ...[goes on]...
+
+Website Text:
+We are a leading research institute in the field of financial derivative pricing.
+
+Output:
+{
+    "eligibility_reasoning": "Citation: < [...] applied research [...] dedicated to the reduction, avoidance or removal of GHG emissions (RD&I) [...]> Reasoning: Although the company is a research institute, it has its focus on financial derivative pricing. The company's main activity is not related to the reduction, avoidance, or removal of GHG emissions as required in the activity description and achieving this would require a major change in the company's business model. Also, the company's research can not be described as "applied". "Therefore, the company is not eligible for this taxonomy activity.",
+    "eligibility": 1 
+}
+
+**EXAMPLE 2**
+Taxonomy Activity Description:
+Manufacture of medicinal products. The economic activities in this category could be associated with NACE code C21.2 in accordance with the statistical classification of economic activities established by Regulation (EC) No 1893/2006.
+
+Website Text:
+Locking compression technology by aap
+aap’s patentierte LOQTEQ® Kerntechnologie vereint Fraktur- kompression und winkelstabile Verriegelung in einem OP-Schritt. Auf dieser Basis haben wir ein umfassendes Platten- und Schraubenportfolio geschaffen, das mehr als 95% aller relevanten Indikationen in der Traumachirurgie an den oberen und unteren Extremitäten abdeckt.
+Herausragende Eigenschaften unserer LOQTEQ® Technologie:
+- Variabel winkelstabile Frakturkompression von 0 bis 2mm
+- Sichere und stabile Schrauben-Platten-Verbindung
+- Minimiert den Effekt der Kaltverschweißung
+Durch internationale Patente geschützt | Produkt bereits erfolgreich im Markt | Erteilte Zulassungen: CE, FDA, NMPA, Anvisa etc.
+
+Output:
+{
+    "eligibility_reasoning": "Citation: <Manufacture of medicinal products. [...]> Reasoning: The company develops and manufactures screws and plates for fracture treatment. This qualifies as the manufacture of medicinal products as the products are used in medical procedures. The company's main activity is in scope for this taxonomy activity.", 
+    "eligibility": 8
+}
+
+Now, Analyze the provided texts carefully and output only the resulting JSON object.
+"""
+
+            human_message = f"""
+Taxonomy Activity Description:
+{activity.dimensions[0].description}
+
+Website Text:
+{text}
+"""
+
+            input = [
+                SystemMessage(system_prompt),
+                HumanMessage(human_message)
+            ]
+            inputs.append(input)
+
+        assessments = self.model.with_structured_output(Eligibility).batch(inputs, temperature=0)
 
         return assessments
