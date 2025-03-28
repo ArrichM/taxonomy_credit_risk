@@ -1,0 +1,54 @@
+flowchart TD
+    %% Data Acquisition Phase
+    A[PermID Database] -->|Extract URLs| B[Corporate Website URLs]
+    B -->|Structured Scraping Protocol| C[Raw Website Content]
+    C -->|Text Preprocessing| D[Processed Textual Data]
+
+    %% Taxonomy Representation Phase
+    E[EU Taxonomy Activities] -->|Vector Embedding| F[Activity Embeddings]
+    F -->|Storage| G[(Vector Store)]
+
+    %% Embedding and Retrieval Phase
+    D -->|Vector Embedding <br> multilingual-e5-base| H[Company Text Embeddings]
+    H --> I{Similarity Search}
+    G --> I
+    I -->|Cosine Similarity Ranking| J[Top 20 Candidate Activities]
+
+    %% LLM Classification Phase
+    J --> L[Candidate Taxonomy Activities]
+    D & L -->|LLM Analysis <br>  Gemini-2.0-flash-001| M[Activity Selection]
+    M -->|Contextual Matching| N[Most Relevant Activity]
+
+    %% Eligibility Assessment Phase
+    D & N -->|LLM Scoring <br> Gemini-2.0-flash-001| O[Eligibility Score]
+    O -->|Continuous Scale 0-10| P[Final Eligibility Assessment]
+
+    %% Validation and Quality Control
+    P --> Q[Manual Validation Subset]
+
+    %% Subgraph for Score Interpretation
+    subgraph "Eligibility Score Interpretation"
+    T[0: Insufficient Information]
+    U[1-3: Minimal Evidence]
+    V[4-6: Moderate Evidence]
+    W[7-10: Strong Evidence]
+    end
+
+    P -.-> T
+    P -.-> U
+    P -.-> V
+    P -.-> W
+
+    %% Styling
+    classDef database fill:#4fafe4,stroke:#333,stroke-width:2px;
+    classDef process fill:#bbf,stroke:#333,stroke-width:1px;
+    classDef dataObj fill:#dfd,stroke:#333,stroke-width:1px;
+    classDef llm fill:#fdd,stroke:#333,stroke-width:2px;
+    classDef validation fill:#ddd,stroke:#333,stroke-width:1px;
+
+    class A,G database;
+    class B,C,D,E,F,H,J,K,L,N database;
+    class I,M,O process;
+    class P,T,U,V,W dataObj;
+    class M,O llm;
+    class Q,R,S validation;

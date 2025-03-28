@@ -5,8 +5,11 @@ from statsmodels.formula.api import ols
 company_data = pd.read_parquet("data/altman_data_v2.parquet")
 
 # Add EU dummy
-eu_countries = ["GERMANY", "FRANCE", "ITALY", "SPAIN", "NETHERLANDS", "BELGIUM", "SWEDEN", "AUSTRIA", "IRELAND", "DENMARK", "FINLAND", "PORTUGAL", "GREECE", "CZECH REPUBLIC", "ROMANIA", "HUNGARY", "SLOVAKIA", "BULGARIA", "CROATIA", "SLOVENIA", "ESTONIA", "LATVIA", "LITHUANIA", "CYPRUS", "MALTA", "LUXEMBOURG"]
+eu_countries = ["GERMANY", "FRANCE", "ITALY", "SPAIN", "NETHERLANDS", "BELGIUM", "SWEDEN", "AUSTRIA", "IRELAND", "DENMARK", "FINLAND", "PORTUGAL", "GREECE", "CZECH REPUBLIC", "ROMANIA", "HUNGARY", "SLOVAKIA", "BULGARIA", "CROATIA", "SLOVENIA", "ESTONIA", "LATVIA", "LITHUANIA", "CYPRUS", "MALTA", "LUXEMBOURG", "POLAND"]
+eg_countries = ["UNITED KINGDOM", "NORWAY", "SWITZERLAND", "TURKEY", "BOSNIA & HERZEGOVINA", "SERBIA", "MACEDONIA", "MONTENEGRO"]
+
 company_data["is_eu"] = company_data["item6026_nation"].str.upper().isin(eu_countries)
+company_data["is_eg"] = company_data["item6026_nation"].str.upper().isin(eu_countries  + eg_countries)
 
 # Load the eligibility data
 eligibility_data = pd.read_csv("data/eligibility_frame.csv", index_col=0)
@@ -32,7 +35,7 @@ data = pd.merge(eligibility_data, company_data, on="code_company_code", how="lef
 data_x = data.copy()
 
 # Add post 2020 dummy - this is when the policy break appears
-data_x["post_2020"] = data_x["year__fiscal_year"] >= 2020
+data_x["post_2021"] = data_x["year__fiscal_year"] > 2021
 
 # Filter out companies for which we could not determine eligibility status
 data_x = data_x[data_x["eligibility_score"] != 0]
@@ -41,20 +44,27 @@ data_x = data_x[data_x["eligibility_score"] != 0]
 data_x = data_x[data_x["year__fiscal_year"] >= 2015]
 data_x["year__fiscal_year"] = data_x["year__fiscal_year"].astype(str)
 
-# Convert boot to int for regression
+# Convert bool to int for regression
 data_x[data_x.select_dtypes(bool).columns] = data_x.select_dtypes(bool).astype(int)
 
 # Clip the altman z-score to reasonable values
 data_x = data_x[(data_x["altman_z"] > -100) & (data_x["altman_z"] < 100)]
 
 # Drop nations which are colinear with the industry
-nation_industry_counts = data_x.groupby("item6026_nation")["item6011_industry_group"].nunique()
+nation_industry_counts = data_x.groupby("item6026_nation")["item7041_tr_business_classification"].nunique()
 data_x = data_x[data_x["item6026_nation"].isin(nation_industry_counts[nation_industry_counts > 1].index)]
 
-data_x.columns
+data_x.groupby("is_eu")["item6026_nation"].unique().iloc[0]
+
+# Only keep nations with more than 100 companies
+# nation_counts = data_x["item6026_nation"].value_counts()
+# data_x = data_x[data_x["item6026_nation"].isin(nation_counts[nation_counts > 100].index)]
+# data_x = data_x[data_x["is_eu"].astype(bool) | ~data_x["is_eg"].astype(bool)]
+
 
 # Specify the regression
-mod = ols("altman_z_private ~ eligibility_score +  eligibility_score : is_eu + post_2020 : is_eu + eligibility_score : post_2020 + eligibility_score : post_2020 : is_eu + C(item6026_nation, Treatment) + C(item6011_industry_group, Treatment) + C(year__fiscal_year, Treatment) : C(item6010_general_industry_classification, Treatment)", data=data_x)
+causal_block = "altman_z ~ eligibility_score +  eligibility_score : is_eu + post_2021 : is_eu + eligibility_score : post_2021 + eligibility_score : post_2021 : is_eu "
+mod = ols(causal_block + " + C(item6026_nation, Treatment) + C(item6011_industry_group, Treatment) + C(year__fiscal_year, Treatment) : C(item6010_general_industry_classification, Treatment)", data=data_x)
 
 # Estimate the regression
 res = mod.fit()
@@ -65,9 +75,11 @@ print(summ)
 
 
 
-data["altman_z"].describe()
+data_x["item1000_company_status"].value_counts()
 
 data_x.columns
 data_x["item7011_number_of_employees"].isna().mean()
 data_x["item6010_general_industry_classification"].nunique()
 data_x.loc[data_x["is_eu"].astype(bool)]["eligibility_score"].mean()
+
+
