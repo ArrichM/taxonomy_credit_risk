@@ -96,8 +96,8 @@ def load_data():
     # Merge datasets
     data = pd.merge(eligibility_data, company_data, on="code_company_code", how="left")
 
-    # Add post 2020 dummy - this is when the policy break appears
-    data["post_2020"] = data["year__fiscal_year"] >= 2020
+    # Add post 2021 dummy - this is when the policy break appears
+    data["post_2021"] = data["year__fiscal_year"] >= 2021
 
     # Filter out companies for which we could not determine eligibility status
     data = data[data["eligibility_score"] != 0]
@@ -127,8 +127,8 @@ def run_base_regression(data):
     print("\nRunning base regression...")
 
     formula = ("altman_z_private ~ eligibility_score + eligibility_score:is_eu + "
-               "post_2020:is_eu + eligibility_score:post_2020 + "
-               "eligibility_score:post_2020:is_eu + C(item6026_nation, Treatment) + "
+               "post_2021:is_eu + eligibility_score:post_2021 + "
+               "eligibility_score:post_2021:is_eu + C(item6026_nation, Treatment) + "
                "C(item6011_industry_group, Treatment) + "
                "C(year__fiscal_year, Treatment):C(item6010_general_industry_classification, Treatment)")
 
@@ -145,8 +145,8 @@ def robustness_alternative_credit_risk(data):
 
     # 1.1 Use the original Altman Z-score
     formula = ("altman_z ~ eligibility_score + eligibility_score:is_eu + "
-               "post_2020:is_eu + eligibility_score:post_2020 + "
-               "eligibility_score:post_2020:is_eu + C(item6026_nation, Treatment) + "
+               "post_2021:is_eu + eligibility_score:post_2021 + "
+               "eligibility_score:post_2021:is_eu + C(item6026_nation, Treatment) + "
                "C(item6011_industry_group, Treatment) + "
                "C(year__fiscal_year, Treatment):C(item6010_general_industry_classification, Treatment)")
 
@@ -160,8 +160,8 @@ def robustness_alternative_credit_risk(data):
     data["wc_ta"] = data["wc_ta"].clip(-10, 10)  # Clip outliers
 
     formula = ("wc_ta ~ eligibility_score + eligibility_score:is_eu + "
-               "post_2020:is_eu + eligibility_score:post_2020 + "
-               "eligibility_score:post_2020:is_eu + C(item6026_nation, Treatment) + "
+               "post_2021:is_eu + eligibility_score:post_2021 + "
+               "eligibility_score:post_2021:is_eu + C(item6026_nation, Treatment) + "
                "C(item6011_industry_group, Treatment) + "
                "C(year__fiscal_year, Treatment):C(item6010_general_industry_classification, Treatment)")
 
@@ -184,8 +184,8 @@ def robustness_firm_size(data):
         subset = data[data["size_tercile"] == size]
 
         formula = ("altman_z_private ~ eligibility_score + eligibility_score:is_eu + "
-                   "post_2020:is_eu + eligibility_score:post_2020 + "
-                   "eligibility_score:post_2020:is_eu + C(item6026_nation, Treatment) + "
+                   "post_2021:is_eu + eligibility_score:post_2021 + "
+                   "eligibility_score:post_2021:is_eu + C(item6026_nation, Treatment) + "
                    "C(item6011_industry_group, Treatment) + "
                    "C(year__fiscal_year, Treatment):C(item6010_general_industry_classification, Treatment)")
 
@@ -200,8 +200,8 @@ def robustness_firm_size(data):
 
     # Create a summary table of coefficients across size groups
     coefficients = ["eligibility_score", "eligibility_score:is_eu",
-                    "post_2020:is_eu", "eligibility_score:post_2020",
-                    "eligibility_score:post_2020:is_eu"]
+                    "post_2021:is_eu", "eligibility_score:post_2021",
+                    "eligibility_score:post_2021:is_eu"]
 
     summary_data = []
     for size, res in results.items():
@@ -273,22 +273,22 @@ def robustness_placebo_years(data):
         except:
             print(f"Could not extract coefficients for year {year}")
 
-    # Add the actual treatment year (2020) for comparison
+    # Add the actual treatment year (2021) for comparison
     try:
-        triple_coef_actual = run_base_regression(data).params["eligibility_score:post_2020:is_eu"]
-        triple_pval_actual = run_base_regression(data).pvalues["eligibility_score:post_2020:is_eu"]
-        double_coef_actual = run_base_regression(data).params["eligibility_score:post_2020"]
-        double_pval_actual = run_base_regression(data).pvalues["eligibility_score:post_2020"]
+        triple_coef_actual = run_base_regression(data).params["eligibility_score:post_2021:is_eu"]
+        triple_pval_actual = run_base_regression(data).pvalues["eligibility_score:post_2021:is_eu"]
+        double_coef_actual = run_base_regression(data).params["eligibility_score:post_2021"]
+        double_pval_actual = run_base_regression(data).pvalues["eligibility_score:post_2021"]
 
         coefs.append({
-            'Year': 2020,
+            'Year': 2021,
             'Triple Interaction Coefficient': triple_coef_actual,
             'Triple Interaction p-value': triple_pval_actual,
             'Double Interaction Coefficient': double_coef_actual,
             'Double Interaction p-value': double_pval_actual
         })
     except:
-        print("Could not extract coefficients for actual treatment year 2020")
+        print("Could not extract coefficients for actual treatment year 2021")
 
     # Create a summary dataframe and plot
     coef_df = pd.DataFrame(coefs)
@@ -300,7 +300,7 @@ def robustness_placebo_years(data):
         plt.subplot(2, 1, 1)
         plt.scatter(coef_df['Year'], coef_df['Triple Interaction Coefficient'], color='blue', s=50)
         plt.axhline(y=0, color='r', linestyle='-', alpha=0.3)
-        plt.axvline(x=2020, color='g', linestyle='--', label="EU Taxonomy Publication")
+        plt.axvline(x=2021, color='g', linestyle='--', label="EU Taxonomy Publication")
         plt.title('Placebo Test: Triple Interaction Coefficients by Treatment Year')
         plt.ylabel('Coefficient\n(eligibility × post × EU)')
         plt.grid(True, alpha=0.3)
@@ -310,7 +310,7 @@ def robustness_placebo_years(data):
         plt.subplot(2, 1, 2)
         plt.scatter(coef_df['Year'], coef_df['Double Interaction Coefficient'], color='green', s=50)
         plt.axhline(y=0, color='r', linestyle='-', alpha=0.3)
-        plt.axvline(x=2020, color='g', linestyle='--', label="EU Taxonomy Publication")
+        plt.axvline(x=2021, color='g', linestyle='--', label="EU Taxonomy Publication")
         plt.title('Placebo Test: Double Interaction Coefficients by Treatment Year')
         plt.xlabel('Treatment Year')
         plt.ylabel('Coefficient\n(eligibility × post)')
@@ -335,7 +335,7 @@ def robustness_sub_period(data):
     data["period"] = pd.cut(
         data["year_numeric"],
         bins=[2014, 2017, 2019, 2022, 2026],
-        labels=["2015-2017", "2018-2019", "2020-2022", "2023-2025"]
+        labels=["2015-2017", "2018-2019", "2021-2022", "2023-2025"]
     )
 
     results = {}
@@ -346,7 +346,7 @@ def robustness_sub_period(data):
             print(f"Insufficient data for period {period}, skipping...")
             continue
 
-        # For pre-2020 periods, we can't estimate post_2020 effects
+        # For pre-2021 periods, we can't estimate post_2021 effects
         if period in ["2015-2017", "2018-2019"]:
             formula = ("altman_z_private ~ eligibility_score + eligibility_score:is_eu + "
                        "C(item6026_nation, Treatment) + C(item6011_industry_group, Treatment)")
@@ -374,8 +374,8 @@ def robustness_eligibility_thresholds(data):
         data[f"high_elig_{threshold}"] = (data["eligibility_score"] >= threshold).astype(int)
 
         formula = (f"altman_z_private ~ high_elig_{threshold} + high_elig_{threshold}:is_eu + "
-                   f"post_2020:is_eu + high_elig_{threshold}:post_2020 + "
-                   f"high_elig_{threshold}:post_2020:is_eu + C(item6026_nation, Treatment) + "
+                   f"post_2021:is_eu + high_elig_{threshold}:post_2021 + "
+                   f"high_elig_{threshold}:post_2021:is_eu + C(item6026_nation, Treatment) + "
                    f"C(item6011_industry_group, Treatment) + "
                    f"C(year__fiscal_year, Treatment):C(item6010_general_industry_classification, Treatment)")
 
@@ -397,8 +397,8 @@ def robustness_eligibility_thresholds(data):
 
     formula = ("altman_z_private ~ elig_medium + elig_high + "
                "elig_medium:is_eu + elig_high:is_eu + "
-               "post_2020:is_eu + elig_medium:post_2020 + elig_high:post_2020 + "
-               "elig_medium:post_2020:is_eu + elig_high:post_2020:is_eu + "
+               "post_2021:is_eu + elig_medium:post_2021 + elig_high:post_2021 + "
+               "elig_medium:post_2021:is_eu + elig_high:post_2021:is_eu + "
                "C(item6026_nation, Treatment) + C(item6011_industry_group, Treatment) + "
                "C(year__fiscal_year, Treatment):C(item6010_general_industry_classification, Treatment)")
 
@@ -416,8 +416,8 @@ def robustness_eu_noneu_separate(data):
 
     # EU sample
     eu_data = data[data["is_eu"] == 1].copy()
-    eu_formula = ("altman_z_private ~ eligibility_score + post_2020 + "
-                  "eligibility_score:post_2020 + "
+    eu_formula = ("altman_z_private ~ eligibility_score + post_2021 + "
+                  "eligibility_score:post_2021 + "
                   "C(item6026_nation, Treatment) + "
                   "C(item6011_industry_group, Treatment) + "
                   "C(year__fiscal_year, Treatment)")
@@ -429,8 +429,8 @@ def robustness_eu_noneu_separate(data):
 
     # Non-EU sample
     noneu_data = data[data["is_eu"] == 0].copy()
-    noneu_formula = ("altman_z_private ~ eligibility_score + post_2020 + "
-                     "eligibility_score:post_2020 + "
+    noneu_formula = ("altman_z_private ~ eligibility_score + post_2021 + "
+                     "eligibility_score:post_2021 + "
                      "C(item6026_nation, Treatment) + "
                      "C(item6011_industry_group, Treatment) + "
                      "C(year__fiscal_year, Treatment)")
@@ -442,19 +442,19 @@ def robustness_eu_noneu_separate(data):
 
     # Compare the key coefficients between EU and non-EU
     comparison = pd.DataFrame({
-        'Coefficient': ['Intercept', 'eligibility_score', 'post_2020', 'eligibility_score:post_2020'],
+        'Coefficient': ['Intercept', 'eligibility_score', 'post_2021', 'eligibility_score:post_2021'],
         'EU_Estimate': [res_eu.params['Intercept'], res_eu.params['eligibility_score'],
-                        res_eu.params['post_2020'], res_eu.params['eligibility_score:post_2020']],
+                        res_eu.params['post_2021'], res_eu.params['eligibility_score:post_2021']],
         'EU_P-value': [res_eu.pvalues['Intercept'], res_eu.pvalues['eligibility_score'],
-                       res_eu.pvalues['post_2020'], res_eu.pvalues['eligibility_score:post_2020']],
+                       res_eu.pvalues['post_2021'], res_eu.pvalues['eligibility_score:post_2021']],
         'NonEU_Estimate': [res_noneu.params['Intercept'], res_noneu.params['eligibility_score'],
-                           res_noneu.params['post_2020'], res_noneu.params['eligibility_score:post_2020']],
+                           res_noneu.params['post_2021'], res_noneu.params['eligibility_score:post_2021']],
         'NonEU_P-value': [res_noneu.pvalues['Intercept'], res_noneu.pvalues['eligibility_score'],
-                          res_noneu.pvalues['post_2020'], res_noneu.pvalues['eligibility_score:post_2020']],
+                          res_noneu.pvalues['post_2021'], res_noneu.pvalues['eligibility_score:post_2021']],
         'Difference': [res_eu.params['Intercept'] - res_noneu.params['Intercept'],
                        res_eu.params['eligibility_score'] - res_noneu.params['eligibility_score'],
-                       res_eu.params['post_2020'] - res_noneu.params['post_2020'],
-                       res_eu.params['eligibility_score:post_2020'] - res_noneu.params['eligibility_score:post_2020']]
+                       res_eu.params['post_2021'] - res_noneu.params['post_2021'],
+                       res_eu.params['eligibility_score:post_2021'] - res_noneu.params['eligibility_score:post_2021']]
     })
 
     print("\nComparison of EU and Non-EU Estimates:")
@@ -541,7 +541,7 @@ def robustness_event_study(data):
             plt.fill_between(coef_df['Year'], coef_df['CI_Lower'], coef_df['CI_Upper'],
                              color='blue', alpha=0.2)
             plt.axhline(y=0, color='red', linestyle='-', alpha=0.7)
-            plt.axvline(x=2020, color='green', linestyle='--', linewidth=2,
+            plt.axvline(x=2021, color='green', linestyle='--', linewidth=2,
                         label="EU Taxonomy Publication")
             plt.xlabel('Year', fontsize=12)
             plt.ylabel('Coefficient (eligibility × EU × year)', fontsize=12)
