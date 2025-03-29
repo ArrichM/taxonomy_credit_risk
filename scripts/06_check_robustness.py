@@ -61,11 +61,11 @@ def load_data():
     company_data = pd.read_parquet("data/altman_data_v2.parquet")
 
     # Add EU dummy
-    eu_countries = ["GERMANY", "FRANCE", "ITALY", "SPAIN", "NETHERLANDS", "BELGIUM",
-                    "SWEDEN", "AUSTRIA", "IRELAND", "DENMARK", "FINLAND", "PORTUGAL",
-                    "GREECE", "CZECH REPUBLIC", "ROMANIA", "HUNGARY", "SLOVAKIA",
-                    "BULGARIA", "CROATIA", "SLOVENIA", "ESTONIA", "LATVIA",
-                    "LITHUANIA", "CYPRUS", "MALTA", "LUXEMBOURG"]
+    eu_countries = ["GERMANY", "FRANCE", "ITALY", "SPAIN", "NETHERLANDS", "BELGIUM", "SWEDEN", "AUSTRIA", "IRELAND",
+                    "DENMARK", "FINLAND", "PORTUGAL", "GREECE", "CZECH REPUBLIC", "ROMANIA", "HUNGARY", "SLOVAKIA",
+                    "BULGARIA", "CROATIA", "SLOVENIA", "ESTONIA", "LATVIA", "LITHUANIA", "CYPRUS", "MALTA",
+                    "LUXEMBOURG", "POLAND"]
+
     company_data["is_eu"] = company_data["item6026_nation"].str.upper().isin(eu_countries)
 
     # Load the eligibility data
@@ -97,7 +97,7 @@ def load_data():
     data = pd.merge(eligibility_data, company_data, on="code_company_code", how="left")
 
     # Add post 2021 dummy - this is when the policy break appears
-    data["post_2021"] = data["year__fiscal_year"] >= 2021
+    data["post_2021"] = data["year__fiscal_year"] > 2021
 
     # Filter out companies for which we could not determine eligibility status
     data = data[data["eligibility_score"] != 0]
@@ -117,6 +117,9 @@ def load_data():
     # Drop nations which are colinear with the industry
     nation_industry_counts = data.groupby("item6026_nation")["item6011_industry_group"].nunique()
     data = data[data["item6026_nation"].isin(nation_industry_counts[nation_industry_counts > 1].index)]
+
+    # Only keep companies which are SMEs according to the official EU definition
+    data = data[data["sme_strict"].astype(bool)]
 
     print(f"Data prepared with {len(data)} observations")
     return data
@@ -468,8 +471,8 @@ def robustness_event_study(data):
     """Run event study analysis to assess pre-trends and dynamic treatment effects"""
     print("\nRunning event study analysis...")
 
-    # Create year dummies (using 2019 as reference year)
-    ref_year = 2019
+    # Create year dummies (using 2020 as reference year)
+    ref_year = 2020
     data_es = data.copy()
 
     # Create interaction terms for each year
@@ -502,6 +505,8 @@ def robustness_event_study(data):
     ])
 
     formula = " + ".join(formula_terms)
+
+    print("Event study formula:", formula)
 
     try:
         mod = ols(formula, data=data_es)
@@ -610,6 +615,7 @@ def run_all_robustness_checks():
         "eu_noneu": eu_noneu_results,
         "event_study": event_study_results
     }
+
 
 if __name__ == "__main__":
     results = run_all_robustness_checks()

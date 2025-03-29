@@ -21,6 +21,8 @@ class TaxonomyResult(pydantic.BaseModel):
 # taxonomy_client  = TaxonomyClient.from_path(taxonomy_path="data/taxonomy.xlsx")
 taxonomy_client  = TaxonomyClient.from_chromadb_client_path(taxonomy_path="data/taxonomy.xlsx")
 
+len(taxonomy_client.activities)
+
 # Load the scraping client
 scraping_client = ScrapingClient()
 

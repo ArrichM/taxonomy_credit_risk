@@ -49,20 +49,14 @@ data_x[data_x.select_dtypes(bool).columns] = data_x.select_dtypes(bool).astype(i
 
 # Clip the altman z-score to reasonable values
 data_x = data_x[(data_x["altman_z"] > -100) & (data_x["altman_z"] < 100)]
+data_x = data_x[(data_x["altman_z_private"] > -100) & (data_x["altman_z_private"] < 100)]
 
 # Drop nations which are colinear with the industry
-nation_industry_counts = data_x.groupby("item6026_nation")["item7041_tr_business_classification"].nunique()
+nation_industry_counts = data_x.groupby("item6026_nation")["item6011_industry_group"].nunique()
 data_x = data_x[data_x["item6026_nation"].isin(nation_industry_counts[nation_industry_counts > 1].index)]
+
+# Only keep companies which are SMEs according to the official EU definition
 data_x = data_x[data_x["sme_strict"].astype(bool)]
-
-
-# Only keep nations with more than 100 companies
-# nation_counts = data_x["item6026_nation"].value_counts()
-# data_x = data_x[data_x["item6026_nation"].isin(nation_counts[nation_counts > 100].index)]
-# data_x = data_x[data_x["is_eu"].astype(bool) | ~data_x["is_eg"].astype(bool)]
-data["sme_financial"].mean()
-
-data_x["is_eu"].mean()
 
 # Specify the regression
 causal_block = "altman_z_private ~ eligibility_score +  eligibility_score : is_eu + post_2021 : is_eu + eligibility_score : post_2021 + eligibility_score : post_2021 : is_eu "
@@ -74,14 +68,3 @@ res = mod.fit()
 # Only print the treatment related coefficients
 summ = "\n".join(l for l in res.summary().as_text().splitlines() if "C(" not in l)
 print(summ)
-
-
-
-data_x["item1000_company_status"].value_counts()
-
-data_x.columns
-data_x["item7011_number_of_employees"].isna().mean()
-data_x["item6010_general_industry_classification"].nunique()
-data_x.loc[data_x["is_eu"].astype(bool)]["eligibility_score"].mean()
-
-
