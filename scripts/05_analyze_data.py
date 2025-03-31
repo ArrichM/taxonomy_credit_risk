@@ -60,7 +60,7 @@ data_x = data_x[data_x["sme_strict"].astype(bool)]
 
 # Specify the regression
 causal_block = "altman_z_private ~ eligibility_score +  eligibility_score : is_eu + post_2021 : is_eu + eligibility_score : post_2021 + eligibility_score : post_2021 : is_eu "
-mod = ols(causal_block + " + C(item6026_nation, Treatment) + C(item6011_industry_group, Treatment) + C(year__fiscal_year, Treatment) : C(item6010_general_industry_classification, Treatment)", data=data_x)
+mod = ols(causal_block + " + C(item6026_nation, Treatment)  + C(item6011_industry_group, Treatment) + C(year__fiscal_year, Treatment) : C(item6010_general_industry_classification, Treatment)", data=data_x)
 
 # Estimate the regression
 res = mod.fit()

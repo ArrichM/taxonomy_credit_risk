@@ -1,0 +1,31 @@
+# Field 06010
+General Industry Classification
+Descriptive Data, Current Item; Field 06010
+All Industries:
+This item represents the company's general industry classification.
+It is defined as follows:
+01 Industrial
+02 Utility
+03 Transportation
+04 Bank/Savings & Loan
+05 Insurance
+06 Other Financial
+
+# Field 06011
+Industry Group
+Descriptive Data, Current Item; Field 06011
+All Industries:
+INDUSTRY GROUP represents a four digit numeric code assigned to the company to represent its
+industry group. Each company is classified into a major industry group, represented by the first two digits
+of the code. In addition each company is further classified within its major group into a subordinated
+industry group. The following is the definition of the industry codes:
+[..Description of 4-digit codes..]
+
+# Field 06026
+Nation
+Descriptive Data, Current Item; Field 06026
+All Industries:
+NATION represents the country in which the company is domiciled. NATION will generally correspond
+with the country under which the company is followed on Worldscope, indicated by NATION CODE, with
+a small number of exceptions (see NATION CODE).
+
