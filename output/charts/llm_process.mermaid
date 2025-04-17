@@ -1,27 +1,22 @@
 flowchart TD
     %% Data Acquisition Phase
-    A[PermID Database] -->|Extract URLs| B[Corporate Website URLs]
-    B -->|Structured Scraping Protocol| C[Raw Website Content]
-    C -->|Text Preprocessing| D[Processed Textual Data]
+    A[Worldscope Database] -->|Extract URLs and scrape websites| C[Website Content]
 
     %% Taxonomy Representation Phase
     E[EU Taxonomy Activities] -->|Vector Embedding| F[Activity Embeddings]
-    F -->|Storage| G[(Vector Store)]
 
     %% Embedding and Retrieval Phase
-    D -->|Vector Embedding <br> multilingual-e5-base| H[Company Text Embeddings]
+    C -->|Vector Embedding | H[Company Text Embeddings]
     H --> I{Similarity Search}
-    G --> I
-    I -->|Cosine Similarity Ranking| J[Top 20 Candidate Activities]
+    F --> I
+    I -->|Cosine Similarity Ranking| J[Candidate Taxonomy Activities]
 
     %% LLM Classification Phase
-    J --> L[Candidate Taxonomy Activities]
-    D & L -->|LLM Analysis <br>  Gemini-2.0-flash-001| M[Activity Selection]
-    M -->|Contextual Matching| N[Most Relevant Activity]
+    C & J -->|LLM Analysis <br>  Gemini-2.0-flash-001| N[Most Relevant Activity]
+
 
     %% Eligibility Assessment Phase
-    D & N -->|LLM Scoring <br> Gemini-2.0-flash-001| O[Eligibility Score]
-    O -->|Continuous Scale 0-10| P[Final Eligibility Assessment]
+    C & N -->|LLM Scoring <br> Gemini-2.0-flash-001| P[Eligibility Score]
 
     %% Validation and Quality Control
     P --> Q[Manual Validation Subset]

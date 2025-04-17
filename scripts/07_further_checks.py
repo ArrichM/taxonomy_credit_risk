@@ -124,9 +124,9 @@ formatted_table = pd.DataFrame({
     'p-value': main_coefs['P>|t|'].round(4),
     '[0.025': main_coefs['[0.025'].round(4),
     '0.975]': main_coefs['0.975]'].round(4),
-    '': np.where(main_coefs['P>|t|'] < 0.01, '***',
-                 np.where(main_coefs['P>|t|'] < 0.05, '**',
-                          np.where(main_coefs['P>|t|'] < 0.1, '*', '')))
+    '': np.where(main_coefs['P>|t|'] < 0.001, '***',
+                 np.where(main_coefs['P>|t|'] < 0.01, '**',
+                          np.where(main_coefs['P>|t|'] < 0.05, '*', '')))
 })
 
 print("Parameter                                          Coef.      Std.Err.   t-value    p-value    [0.025     0.975]    ")
@@ -226,9 +226,9 @@ for placebo_year in placebo_years:
         'p-value': main_placebo_coefs['P>|t|'].round(4),
         '[0.025': main_placebo_coefs['[0.025'].round(4),
         '0.975]': main_placebo_coefs['0.975]'].round(4),
-        '': np.where(main_placebo_coefs['P>|t|'] < 0.01, '***',
-                     np.where(main_placebo_coefs['P>|t|'] < 0.05, '**',
-                              np.where(main_placebo_coefs['P>|t|'] < 0.1, '*', '')))
+        '': np.where(main_placebo_coefs['P>|t|'] < 0.001, '***',
+                     np.where(main_placebo_coefs['P>|t|'] < 0.01, '**',
+                              np.where(main_placebo_coefs['P>|t|'] < 0.05, '*', '')))
     })
 
     print("Parameter                                          Coef.      Std.Err.   t-value    p-value    [0.025     0.975]    ")
@@ -330,9 +330,9 @@ for period_name, (start_year, end_year) in sub_periods:
         'p-value': main_sub_coefs['P>|t|'].round(4),
         '[0.025': main_sub_coefs['[0.025'].round(4),
         '0.975]': main_sub_coefs['0.975]'].round(4),
-        '': np.where(main_sub_coefs['P>|t|'] < 0.01, '***',
-                     np.where(main_sub_coefs['P>|t|'] < 0.05, '**',
-                              np.where(main_sub_coefs['P>|t|'] < 0.1, '*', '')))
+        '': np.where(main_sub_coefs['P>|t|'] < 0.001, '***',
+                     np.where(main_sub_coefs['P>|t|'] < 0.01, '**',
+                              np.where(main_sub_coefs['P>|t|'] < 0.05, '*', '')))
     })
 
     print("Parameter                                          Coef.      Std.Err.   t-value    p-value    [0.025     0.975]    ")
@@ -377,11 +377,11 @@ for size in ["Small", "Medium", "Large"]:
 
     # Create p-value annotations
     def add_stars(p_value):
-        if p_value < 0.01:
+        if p_value < 0.001:
             return "***"
-        elif p_value < 0.05:
+        elif p_value < 0.01:
             return "**"
-        elif p_value < 0.1:
+        elif p_value < 0.05:
             return "*"
         else:
             return ""
@@ -507,9 +507,9 @@ for threshold in thresholds:
         'p-value': main_threshold_coefs['P>|t|'].round(4),
         '[0.025': main_threshold_coefs['[0.025'].round(4),
         '0.975]': main_threshold_coefs['0.975]'].round(4),
-        '': np.where(main_threshold_coefs['P>|t|'] < 0.01, '***',
-                     np.where(main_threshold_coefs['P>|t|'] < 0.05, '**',
-                              np.where(main_threshold_coefs['P>|t|'] < 0.1, '*', '')))
+        '': np.where(main_threshold_coefs['P>|t|'] < 0.001, '***',
+                     np.where(main_threshold_coefs['P>|t|'] < 0.01, '**',
+                              np.where(main_threshold_coefs['P>|t|'] < 0.05, '*', '')))
     })
 
     print("Parameter                                          Coef.      Std.Err.   t-value    p-value    [0.025     0.975]    ")
@@ -557,9 +557,9 @@ formatted_cat_table = pd.DataFrame({
     'p-value': main_cat_coefs['P>|t|'].round(4),
     '[0.025': main_cat_coefs['[0.025'].round(4),
     '0.975]': main_cat_coefs['0.975]'].round(4),
-    '': np.where(main_cat_coefs['P>|t|'] < 0.01, '***',
-                 np.where(main_cat_coefs['P>|t|'] < 0.05, '**',
-                          np.where(main_cat_coefs['P>|t|'] < 0.1, '*', '')))
+    '': np.where(main_cat_coefs['P>|t|'] < 0.001, '***',
+                 np.where(main_cat_coefs['P>|t|'] < 0.01, '**',
+                          np.where(main_cat_coefs['P>|t|'] < 0.05, '*', '')))
 })
 
 print("Parameter                                          Coef.      Std.Err.   t-value    p-value    [0.025     0.975]    ")
@@ -605,9 +605,9 @@ formatted_eu_table = pd.DataFrame({
     'p-value': main_eu_coefs['P>|t|'].round(4),
     '[0.025': main_eu_coefs['[0.025'].round(4),
     '0.975]': main_eu_coefs['0.975]'].round(4),
-    '': np.where(main_eu_coefs['P>|t|'] < 0.01, '***',
-                 np.where(main_eu_coefs['P>|t|'] < 0.05, '**',
-                          np.where(main_eu_coefs['P>|t|'] < 0.1, '*', '')))
+    '': np.where(main_eu_coefs['P>|t|'] < 0.001, '***',
+                 np.where(main_eu_coefs['P>|t|'] < 0.01, '**',
+                          np.where(main_eu_coefs['P>|t|'] < 0.05, '*', '')))
 })
 
 print("Parameter                                          Coef.      Std.Err.   t-value    p-value    [0.025     0.975]    ")
@@ -648,9 +648,9 @@ formatted_noneu_table = pd.DataFrame({
     'p-value': main_noneu_coefs['P>|t|'].round(4),
     '[0.025': main_noneu_coefs['[0.025'].round(4),
     '0.975]': main_noneu_coefs['0.975]'].round(4),
-    '': np.where(main_noneu_coefs['P>|t|'] < 0.01, '***',
-                 np.where(main_noneu_coefs['P>|t|'] < 0.05, '**',
-                          np.where(main_noneu_coefs['P>|t|'] < 0.1, '*', '')))
+    '': np.where(main_noneu_coefs['P>|t|'] < 0.001, '***',
+                 np.where(main_noneu_coefs['P>|t|'] < 0.01, '**',
+                          np.where(main_noneu_coefs['P>|t|'] < 0.05, '*', '')))
 })
 
 print("Parameter                                          Coef.      Std.Err.   t-value    p-value    [0.025     0.975]    ")
